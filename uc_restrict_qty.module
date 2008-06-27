@@ -1,0 +1,94 @@
+<?php
+
+/**
+ * @file
+ * Restrict the quantity on specified products so that only one may be purchased
+ * at a time.
+ *
+ * Sponsored by Flat World Knowledge - http://www.flatworldknowledge.com
+ */
+
+/**
+ * Implementation of hook_product_feature().
+ */
+function uc_restrict_qty_product_feature() {
+  $features[] = array(
+    'id' => 'restrict_qty',
+    'title' => t('Restrict Qty.'),
+    'callback' => 'uc_restrict_qty_feature_form',
+  );
+
+  return $features;
+}
+
+// Display the settings form for the node access product feature.
+function uc_restrict_qty_feature_form($node, $feature) {
+  if (empty($feature)) {
+    // It's not necessary to add more than one of these features at the moment.
+    if ($result = db_result(db_query("SELECT COUNT(*) FROM {uc_product_features} WHERE nid = %d AND fid = '%s'", $node->nid, 'restrict_qty'))) {
+      drupal_set_message(t('Adding more than one Restrict Qty. does nothing for now.'));
+    }
+    else {
+      $data = array(
+        'pfid' => db_next_id('{uc_product_features}_pfid'),
+        'nid' => $node->nid,
+        'fid' => 'restrict_qty',
+        'description' => t('Users may only purchase one of this product at a time.'),
+      );
+      drupal_goto(uc_product_feature_save($data));
+    }
+  }
+  else {
+    drupal_set_message(t('There are no settings to edit for Restrict Qty. features.'));
+  }
+
+  drupal_goto('node/'. $node->nid .'/edit/features');
+}
+
+/**
+ * Implementation of hook_add_to_cart_data().
+ */
+function uc_restrict_qty_add_to_cart_data($form_values) {
+  return array('restrict_qty' => uc_restrict_qty_count($form_values['nid']));
+}
+
+/**
+ * Implementation of hook_cart_item().
+ */
+function uc_restrict_qty_cart_item($op, &$item) {
+  if ($op == 'load') {
+    // If this item has a quantity restriction on it...
+    if ($item->data['restrict_qty'] > 0 && $item->qty > 1) {
+      // Reduce the quantity to 1 if necessary. 
+      db_query("UPDATE {uc_cart_products} SET qty = 1 WHERE cart_id = '%s' AND nid = %d AND data = '%s'", uc_cart_get_id(), $item->nid, serialize($item->data));
+      $item->qty = 1;
+    }
+  }
+}
+
+/**
+ * Implementation of hook_form_alter().
+ */
+function uc_restrict_qty_form_alter($form_id, &$form) {
+  // Disable the appropriate Qty. fields on the cart view form.
+  if ($form_id == 'uc_cart_view_form') {
+    foreach ($form['items'] as $key => $value) {
+      $data = unserialize($value['data']['#value']);
+
+      // If this item has a quantity restriction on it...
+      if ($data['restrict_qty'] > 0) {
+        $form['items'][$key]['qty']['#theme'] = 'restrict_qty_field';
+      }
+    }
+  }
+}
+
+// Themes cart Qty. boxes so they can't be changed.
+function theme_restrict_qty_field($element) {
+  return check_plain($element['#value']);
+}
+
+// Returns the number of restrict_qty features on a product node.
+function uc_restrict_qty_count($nid) {
+  return db_result(db_query("SELECT COUNT(*) FROM {uc_product_features} WHERE nid = %d AND fid = '%s'", $nid, 'restrict_qty'));
+}
