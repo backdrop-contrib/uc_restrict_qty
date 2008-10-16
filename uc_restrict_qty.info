@@ -1,5 +1,6 @@
 ; $Id$
 name = Restrict Qty
 description = Restrict the quantity on specified products so that only one may be purchased at a time.
-dependencies = uc_cart
+dependencies[] = uc_cart
 package = Ubercart - extra
+core = 6.x
