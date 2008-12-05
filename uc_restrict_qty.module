@@ -115,9 +115,13 @@ function uc_restrict_qty_cart_item($op, &$item) {
   if ($op == 'load') {
     // If this item has a quantity restriction on it...
     if ($item->data['restrict_qty'] > 0 && $item->qty > 1) {
-      // Reduce the quantity to 1 if necessary.
-      db_query("UPDATE {uc_cart_products} SET qty = 1 WHERE cart_id = '%s' AND nid = %d AND data = '%s'", uc_cart_get_id(), $item->nid, serialize($item->data));
+      db_query("UPDATE {uc_cart_products} SET qty = 1, changed = %d WHERE nid = %d AND cart_id = '%s' AND data = '%s'", time(), $item->nid, uc_cart_get_id(), serialize($item->data));
       $item->qty = 1;
+    }
+    // If this item quantity has exceeded the global restriction...
+    elseif (variable_get('uc_restrict_qty_global', 0) && $item->qty >= variable_get('uc_restrict_qty_global', 0)) {
+      db_query("UPDATE {uc_cart_products} SET qty = %d, changed = %d WHERE nid = %d AND cart_id = '%s' AND data = '%s'", variable_get('uc_restrict_qty_global', 0), time(), $item->nid, uc_cart_get_id(), serialize($item->data));
+      $item->qty = variable_get('uc_restrict_qty_global', 0);
     }
   }
 }
@@ -129,9 +133,10 @@ function uc_restrict_qty_form_alter(&$form, &$form_state, $form_id) {
   // Disable the appropriate Qty. fields on the cart view form.
   if ($form_id == 'uc_cart_view_form') {
     foreach ($form['#parameters'][2] as $key => $item) {
-      // If this item has a quantity restriction on it...
+      // If this item has a quantity restriction feature on it...
       if ($item->data['restrict_qty'] > 0) {
-        $form['items'][$key]['qty']['#theme'] = 'restrict_qty_field';
+        $form['items'][$key]['qty']['#attributes']['readonly'] = 'readonly';
+        //$form['items'][$key]['qty']['#theme'] = 'restrict_qty_field';
       }
     }
   }
@@ -145,13 +150,13 @@ function uc_restrict_qty_admin_form() {
     '#size' => 5,
     '#maxlength' => 5,
     '#description' => t('The total number of products that can be added to a cart. Set to 0 for unlimited.'),
-    '#default_value' => variable_get('uc_restrict_qty_global', NULL),
+    '#default_value' => variable_get('uc_restrict_qty_global', 0),
   );
   $form['#validate'][] = 'uc_restrict_qty_admin_form_validate';
   return system_settings_form($form);
 }
 
-// Builds a paged list and overview of existing product fees.
+// Ensure user has entered a sensible value.
 function uc_restrict_qty_admin_form_validate(&$form, $form_state) {
   if (!is_numeric($form_state['values']['uc_restrict_qty_global'])) {
     form_set_error('uc_restrict_qty_global', t('Please enter a numeric value.'));
@@ -163,14 +168,10 @@ function uc_restrict_qty_admin_form_validate(&$form, $form_state) {
 
 // Themes cart Qty. boxes so they can't be changed. (currently not in use)
 function theme_restrict_qty_field($element) {
- //$element['#attributes']['readonly'] = 'readonly';
- return check_plain($element['#value']);
+  return check_plain($element['#value']);
 }
 
 // Returns the number of restrict_qty features on a product node.
 function uc_restrict_qty_count($nid) {
-  if (variable_get('uc_restrict_qty_global', 0)) {
-    return variable_get('uc_restrict_qty_global', 0);
-  }
   return db_result(db_query("SELECT COUNT(*) FROM {uc_product_features} WHERE nid = %d AND fid = '%s'", $nid, 'restrict_qty'));
 }
