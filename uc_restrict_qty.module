@@ -5,36 +5,8 @@
  * @file
  * Restrict the quantity on specified products so that only one may be purchased
  * at a time.
- *
- * Sponsored by Flat World Knowledge - http://www.flatworldknowledge.com
- * And Kirkdesigns - http://www.kirkdesigns.co.uk
  */
 
-/**
- * Implementation of hook_help().
- */
-function uc_restrict_qty_help($path, $arg) {
-  switch ($path) {
-    case 'admin/store/settings/restrict_qty':
-      return t('You may use this page to set a global limit on the number of items that a shopping cart may contain.');      
-   }
-}
-
-/**
- * Implementation of hook_menu().
- */
-function uc_restrict_qty_menu() {
-  $items['admin/store/settings/restrict_qty'] = array(
-    'title' => 'Restrict Qty',
-    'description' => 'Adjust settings for Ubercart Restrict Qty feature.',
-    'page callback' => 'drupal_get_form',
-    'page arguments' => array('uc_restrict_qty_admin_form'),
-    'access arguments' => array('administer products'),
-    'type' => MENU_NORMAL_ITEM,
-    'weight' => 1,
-  );
-  return $items;
-}
 
 /**
  * Implementation of hook_theme().
@@ -55,8 +27,32 @@ function uc_restrict_qty_product_feature() {
     'id' => 'restrict_qty',
     'title' => t('Restrict Qty'),
     'callback' => 'uc_restrict_qty_feature_form',
+    'settings' => 'uc_restrict_qty_settings',
   );
   return $features;
+}
+
+// Adds settings to the product features form for UC Restrict Qty.
+function uc_restrict_qty_settings() {
+  $form['#description'] = t('This feature is limited in scope to preventing a user from adding different products to the cart.  This does not restrict the quantity of products in the cart if updated after being added, so this feature is best used on sites where all products have a restrict quantity feature on them.');
+
+  $form['uc_restrict_qty_global'] = array(
+    '#title' => t('Global limit'),
+    '#type' => 'textfield',
+    '#size' => 5,
+    '#maxlength' => 5,
+    '#description' => t('The number of different products that can be added to a cart. Set to 0 for unlimited.'),
+    '#default_value' => variable_get('uc_restrict_qty_global', '0'),
+  );
+
+  return $form;
+}
+
+// Validates the textfield on the product features settings form.
+function uc_restrict_qty_settings_validate($form, &$form_state) {
+  if (!is_numeric($form_state['values']['uc_restrict_qty_global']) || $form_state['values']['uc_restrict_qty_global'] < 0) {
+    form_set_error('uc_restrict_qty_global', t('You must enter 0 or a positive number value.'));
+  }
 }
 
 // Builds the form to display for adding or editing a the restricted quantity feature.
@@ -86,15 +82,17 @@ function uc_restrict_qty_feature_form($form_state, $node, $feature) {
  * Implementation of hook_add_to_cart().
  */
 function uc_restrict_qty_add_to_cart($nid, $qty, $data) {
-  if (variable_get('uc_restrict_qty_global', 0)) {
-    $cart_items = uc_cart_get_contents(uc_cart_get_id());
-    if (sizeof($cart_items) >= variable_get('uc_restrict_qty_global', 0)) {
+  $limit = variable_get('uc_restrict_qty_global', 0);
+
+  // If a global restriction on the number of items has been made.
+  if ($limit > 0) {
+    if (count(uc_cart_get_contents()) >= $limit) {
+      $message = format_plural($limit, 'Sorry, you may only have 1 item in your cart. You must checkout or remove the item in your cart before adding a different item.',
+        'Sorry, you may only have a total of @count items in your cart.  You must checkout or remove items from your cart before adding others.');
+
       $result[] = array(
         'success' => FALSE,
-        'message' => t('Sorry, you may only have @qty in your cart. Please remove something from your cart first.',
-          array(
-            '@qty' => format_plural(variable_get('uc_restrict_qty_global', 0), '1 item', '@count items'),
-          )),
+        'message' => $message,
       );
     }
   }
@@ -115,13 +113,9 @@ function uc_restrict_qty_cart_item($op, &$item) {
   if ($op == 'load') {
     // If this item has a quantity restriction on it...
     if ($item->data['restrict_qty'] > 0 && $item->qty > 1) {
-      db_query("UPDATE {uc_cart_products} SET qty = 1, changed = %d WHERE nid = %d AND cart_id = '%s' AND data = '%s'", time(), $item->nid, uc_cart_get_id(), serialize($item->data));
+      // Reduce the quantity to 1 if necessary.
+      db_query("UPDATE {uc_cart_products} SET qty = 1, changed = %d WHERE cart_id = '%s' AND nid = %d AND data = '%s'", time(), uc_cart_get_id(), $item->nid, serialize($item->data));
       $item->qty = 1;
-    }
-    // If this item quantity has exceeded the global restriction...
-    elseif (variable_get('uc_restrict_qty_global', 0) && $item->qty >= variable_get('uc_restrict_qty_global', 0)) {
-      db_query("UPDATE {uc_cart_products} SET qty = %d, changed = %d WHERE nid = %d AND cart_id = '%s' AND data = '%s'", variable_get('uc_restrict_qty_global', 0), time(), $item->nid, uc_cart_get_id(), serialize($item->data));
-      $item->qty = variable_get('uc_restrict_qty_global', 0);
     }
   }
 }
@@ -132,37 +126,19 @@ function uc_restrict_qty_cart_item($op, &$item) {
 function uc_restrict_qty_form_alter(&$form, &$form_state, $form_id) {
   // Disable the appropriate Qty. fields on the cart view form.
   if ($form_id == 'uc_cart_view_form') {
-    foreach ($form['#parameters'][2] as $key => $item) {
-      // If this item has a quantity restriction feature on it...
-      if ($item->data['restrict_qty'] > 0) {
-        $form['items'][$key]['qty']['#attributes']['readonly'] = 'readonly';
-        //$form['items'][$key]['qty']['#theme'] = 'restrict_qty_field';
+    for ($i = 0, $j = count(uc_cart_get_contents()); $i < $j; $i++) {
+      $data = unserialize($form['items'][$i]['data']['#value']);
+
+      // If this item has a quantity restriction on it...
+      if ($data['restrict_qty'] > 0) {
+        $form['items'][$i]['qty']['#type'] = 'value';
+        $form['items'][$i]['qty']['#theme'] = 'restrict_qty_field';
       }
     }
   }
-}
 
-// builds the admin settings form.
-function uc_restrict_qty_admin_form() {
-  $form['uc_restrict_qty_global'] = array(
-    '#title' => t('Global limit'),
-    '#type' => 'textfield',
-    '#size' => 5,
-    '#maxlength' => 5,
-    '#description' => t('The total number of products that can be added to a cart. Set to 0 for unlimited.'),
-    '#default_value' => variable_get('uc_restrict_qty_global', 0),
-  );
-  $form['#validate'][] = 'uc_restrict_qty_admin_form_validate';
-  return system_settings_form($form);
-}
-
-// Ensure user has entered a sensible value.
-function uc_restrict_qty_admin_form_validate(&$form, $form_state) {
-  if (!is_numeric($form_state['values']['uc_restrict_qty_global'])) {
-    form_set_error('uc_restrict_qty_global', t('Please enter a numeric value.'));
-  }
-  if ($form_state['values']['uc_restrict_qty_global'] < 0) {
-    form_set_error('uc_restrict_qty_global', t('Please enter a positive integer.'));
+  if ($form_id == 'uc_product_feature_settings_form') {
+    $form['#validate'][] = 'uc_restrict_qty_settings_validate';
   }
 }
 
