@@ -27,6 +27,7 @@ function uc_restrict_qty_product_feature() {
     'id' => 'restrict_qty',
     'title' => t('Restrict Qty'),
     'callback' => 'uc_restrict_qty_feature_form',
+    'delete' => 'uc_restrict_qty_feature_delete',
     'settings' => 'uc_restrict_qty_settings',
   );
   return $features;
@@ -57,25 +58,107 @@ function uc_restrict_qty_settings_validate($form, &$form_state) {
 
 // Builds the form to display for adding or editing a the restricted quantity feature.
 function uc_restrict_qty_feature_form($form_state, $node, $feature) {
-  if (empty($feature)) {
-    // It's not necessary to add more than one of these features at the moment.
-    if ($result = db_result(db_query("SELECT COUNT(*) FROM {uc_product_features} WHERE nid = %d AND fid = '%s'", $node->nid, 'restrict_qty'))) {
-      drupal_set_message(t('Adding more than one Restrict Qty. does nothing for now.'));
-    }
-    else {
-      $data = array(
-        'pfid' => db_last_insert_id('uc_product_features', 'pfid'),
-        'nid' => $node->nid,
-        'fid' => 'restrict_qty',
-        'description' => t('Users may only purchase one of this product at a time.'),
-      );
-      drupal_goto(uc_product_feature_save($data));
-    }
+  $models = uc_product_get_models($node);
+  if (!empty($feature)) {
+    $product_qty = db_fetch_object(db_query("SELECT * FROM {uc_restrict_qty_products} WHERE pfid = %d", $feature['pfid']));
+    
+    $default_qty = $product_qty->qty;
+    $default_model = $product_qty->model;
+    
+    $form['pfid'] = array(
+      '#type' => 'value',
+      '#value' => $feature['pfid'],
+    );
+    $form['rqpid'] = array(
+      '#type' => 'value',
+      '#value' => $product_qty->rqpid,
+    );
   }
   else {
-    drupal_set_message(t('There are no settings to edit for Restrict Qty. features.'));
+    $default_model = 0;
+    $default_qty = variable_get('uc_restrict_qty_default_qty', '1');
   }
-  drupal_goto('node/'. $node->nid .'/edit/features');
+/*  if ($result = db_result(db_query("SELECT COUNT(*) FROM {uc_product_features} WHERE nid = %d AND fid = '%s'", $node->nid, 'restrict_qty'))) {
+    drupal_set_message(t('Adding more than one Restrict Qty. does nothing for now.', 'error'));
+    $form['no_roles'] = array(
+      '#value' => t('You need to <a href="!url">create new roles</a> before any can be added as product features.', array('!url' => url('admin/user/roles', array('query' => 'destination=admin/store/settings/products/edit/features')))),
+      '#prefix' => '<p>',
+      '#suffix' => '</p>',
+    );
+    return $form;
+  }*/
+
+  $form['nid'] = array(
+    '#type' => 'value',
+    '#value' => $node->nid,
+  );
+  $form['model'] = array(
+    '#type' => 'select',
+    '#title' => t('SKU'),
+    '#default_value' => $default_model,
+    '#description' => t('This is the SKU of the product that will be restricted to this quantity.'),
+    '#options' => $models,
+  );
+  $form['quantity'] = array(
+    '#title' => t('Quantity limit'),
+    '#type' => 'textfield',
+    '#size' => 5,
+    '#maxlength' => 5,
+    '#description' => t('The number of times this product can be added to a cart. Set to 0 for unlimited.'),
+    '#default_value' => $default_qty,
+  );
+  return uc_product_feature_form($form);
+}
+
+// Validates the textfield on the product features settings form.
+function uc_restrict_qty_feature_form_validate($form, &$form_state) {
+  
+  // Invalid quantity?
+  if (!is_numeric($form_state['values']['quantity']) || $form_state['values']['quantity'] < 0) {
+    form_set_error('uc_restrict_qty_product_qty', t('You must enter 0 or a positive integer value.'));
+  }
+
+  // This feature is already set on this SKU?
+  if ($product_roles = db_fetch_object(db_query("SELECT * FROM {uc_restrict_qty_products} WHERE nid = %d AND model = '%s'", $form_state['values']['nid'], $form_state['values']['model'])) && $form_state['values']['pfid'] == 0) {
+    form_set_error('uc_roles_model', t('A quantity restriction has already been set up for this SKU'));
+  }
+}
+
+/**
+ * Form submit handler for the roles feature form.
+ */
+function uc_restrict_qty_feature_form_submit($form, &$form_state) {
+  $product_qty = array(
+    'rqpid'       => $form_state['values']['rqpid'],
+    'pfid'        => $form_state['values']['pfid'],
+    'nid'         => $form_state['values']['nid'],
+    'model'       => $form_state['values']['model'],
+    'qty'         => $form_state['values']['quantity'],
+  );
+  
+  $description = empty($product_qty['model']) ? t('<strong>SKU:</strong> Any<br/>') : t('<strong>SKU:</strong> !sku<br/>', array('!sku' => $product_qty['model']));
+  $description .=  t('<strong>Quantity restriction:</strong> !qty<br/>', array('!qty' => $form_state['values']['quantity']));
+  
+  $data = array(
+    'pfid' => $product_qty['pfid'],
+    'nid' => $product_qty['nid'],
+    'fid' => 'restrict_qty',
+    'description' => $description,
+  );
+
+  $form_state['redirect'] = uc_product_feature_save($data);
+
+  $key = NULL;
+  if ($product_qty['rqpid']) {
+    $key = 'rqpid';
+  }
+  
+  // Insert or update uc_file_product table
+  if (empty($product_qty['pfid'])) {
+    $product_qty['pfid'] = db_last_insert_id('uc_product_features', 'pfid');
+  }
+  
+  drupal_write_record('uc_restrict_qty_products', $product_qty, $key);
 }
 
 /**
@@ -103,7 +186,7 @@ function uc_restrict_qty_add_to_cart($nid, $qty, $data) {
  * Implementation of hook_add_to_cart_data().
  */
 function uc_restrict_qty_add_to_cart_data($form_values) {
-  return array('restrict_qty' => uc_restrict_qty_count($form_values['nid']));
+  return array('restrict_qty' => uc_restrict_qty_count($form_values));
 }
 
 /**
@@ -112,10 +195,11 @@ function uc_restrict_qty_add_to_cart_data($form_values) {
 function uc_restrict_qty_cart_item($op, &$item) {
   if ($op == 'load') {
     // If this item has a quantity restriction on it...
-    if ($item->data['restrict_qty'] > 0 && $item->qty > 1) {
+    if ($item->data['restrict_qty'] > 0 && $item->qty > $item->data['restrict_qty']) {
       // Reduce the quantity to 1 if necessary.
-      db_query("UPDATE {uc_cart_products} SET qty = 1, changed = %d WHERE cart_id = '%s' AND nid = %d AND data = '%s'", time(), uc_cart_get_id(), $item->nid, serialize($item->data));
-      $item->qty = 1;
+      db_query("UPDATE {uc_cart_products} SET qty = %d, changed = %d WHERE cart_id = '%s' AND nid = %d AND data = '%s'", $item->data['restrict_qty'], time(), uc_cart_get_id(), $item->nid, serialize($item->data));
+      $item->qty = $item->data['restrict_qty'];
+      drupal_set_message(t('You may only add !qty !item. to your cart. Quantity has been restricted.', array('!qty' => $item->qty, '!item' => $item->title)), 'warning');
     }
   }
 }
@@ -130,7 +214,7 @@ function uc_restrict_qty_form_alter(&$form, &$form_state, $form_id) {
       $data = unserialize($form['items'][$i]['data']['#value']);
 
       // If this item has a quantity restriction on it...
-      if ($data['restrict_qty'] > 0) {
+      if ($data['restrict_qty'] > $data['restrict_qty']) {
         $form['items'][$i]['qty']['#type'] = 'value';
         $form['items'][$i]['qty']['#theme'] = 'restrict_qty_field';
       }
@@ -148,6 +232,30 @@ function theme_restrict_qty_field($element) {
 }
 
 // Returns the number of restrict_qty features on a product node.
-function uc_restrict_qty_count($nid) {
-  return db_result(db_query("SELECT COUNT(*) FROM {uc_product_features} WHERE nid = %d AND fid = '%s'", $nid, 'restrict_qty'));
+function uc_restrict_qty_count($form_values) {
+  return db_result(db_query("SELECT qty FROM {uc_restrict_qty_products} WHERE nid = %d", $form_values['nid']));
+}
+
+/* ************************************************************************* *
+ *  Actions                                                                  *
+ * ************************************************************************* */
+
+/**
+ * Delete all data associated with a given node.
+ *
+ * @param $nid
+ *   A Drupal node ID.
+ */
+function uc_restrict_qty_node_delete($nid) {
+  db_query("DELETE FROM {uc_restrict_qty_products} WHERE nid = %d", $nid);
+}
+
+/**
+ * Delete all data associated with a given product feature.
+ *
+ * @param $pfid
+ *   An Ubercart product feature ID.
+ */
+function uc_restrict_qty_feature_delete($pfid) {
+  db_query("DELETE FROM {uc_restrict_qty_products} WHERE pfid = %d", $pfid);
 }
