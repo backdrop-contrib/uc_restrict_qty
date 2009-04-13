@@ -212,15 +212,15 @@ function uc_restrict_qty_form_alter(&$form, &$form_state, $form_id) {
   if ($form_id == 'uc_cart_view_form') {
     for ($i = 0, $j = count(uc_cart_get_contents()); $i < $j; $i++) {
       $data = unserialize($form['items'][$i]['data']['#value']);
-
+      
       // If this item has a quantity restriction on it...
-      if ($data['restrict_qty'] > $data['restrict_qty']) {
+      if ($data['restrict_qty'] == 1) {
         $form['items'][$i]['qty']['#type'] = 'value';
         $form['items'][$i]['qty']['#theme'] = 'restrict_qty_field';
       }
     }
   }
-
+  
   if ($form_id == 'uc_product_feature_settings_form') {
     $form['#validate'][] = 'uc_restrict_qty_settings_validate';
   }
