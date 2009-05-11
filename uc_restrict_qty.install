@@ -77,3 +77,14 @@ function uc_restrict_qty_uninstall() {
 
   db_query("DELETE FROM {variable} WHERE name LIKE 'uc_restrict_qty_%%'");
 }
+
+/**
+ * Implementation of hook_update_N().
+ *
+* If updating from an earlier version than 6.x-2.0, the database needs to be installed.
+*/
+function uc_restrict_qty_update_6200() {
+  $ret = array();
+  uc_restrict_qty_install();
+  return $ret;
+}
