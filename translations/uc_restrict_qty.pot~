@@ -1,0 +1,166 @@
+# $Id$
+#
+# LANGUAGE translation of Drupal (general)
+# Copyright YEAR NAME <EMAIL@ADDRESS>
+# Generated from files:
+#  uc_restrict_qty.module,v 1.1.4.5.2.2 2009/04/13 11:21:15 mrfelton
+#  uc_restrict_qty.install,v 1.1.2.2 2009/05/11 17:28:55 mrfelton
+#  uc_restrict_qty.info,v 1.1.4.2 2008/10/17 14:41:03 mrfelton
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PROJECT VERSION\n"
+"POT-Creation-Date: 2009-05-17 10:04+0100\n"
+"PO-Revision-Date: YYYY-mm-DD HH:MM+ZZZZ\n"
+"Last-Translator: NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <EMAIL@ADDRESS>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
+
+#: uc_restrict_qty.module:28
+msgid "Restrict Qty"
+msgstr ""
+
+#: uc_restrict_qty.module:38
+msgid "This feature is limited in scope to preventing a user from adding different products to the cart.  This does not restrict the quantity of products in the cart if updated after being added, so this feature is best used on sites where all products have a restrict quantity feature on them."
+msgstr ""
+
+#: uc_restrict_qty.module:41
+msgid "Global limit"
+msgstr ""
+
+#: uc_restrict_qty.module:45
+msgid "The number of different products that can be added to a cart. Set to 0 for unlimited."
+msgstr ""
+
+#: uc_restrict_qty.module:50
+msgid "Defaults"
+msgstr ""
+
+#: uc_restrict_qty.module:52
+msgid "These options will take action, only if product has the \"Restrict quantity\" feature activated."
+msgstr ""
+
+#: uc_restrict_qty.module:55
+msgid "Default maximum limit for a product"
+msgstr ""
+
+#: uc_restrict_qty.module:59
+msgid "The number of products of single type that can be added to a cart. Set to 0 for unlimited."
+msgstr ""
+
+#: uc_restrict_qty.module:63
+msgid "Is restriction is the user's lifetime limit"
+msgstr ""
+
+#: uc_restrict_qty.module:65
+msgid "Useful when you want to prevent double ordering of a product."
+msgstr ""
+
+#: uc_restrict_qty.module:75;78
+msgid "You must enter 0 or a positive number value."
+msgstr ""
+
+#: uc_restrict_qty.module:117;165
+msgid "SKU"
+msgstr ""
+
+#: uc_restrict_qty.module:119
+msgid "This is the SKU of the product that will be restricted to this quantity."
+msgstr ""
+
+#: uc_restrict_qty.module:123
+msgid "Quantity limit"
+msgstr ""
+
+#: uc_restrict_qty.module:127
+msgid "The number of times this product can be added to a cart. Set to 0 for unlimited."
+msgstr ""
+
+#: uc_restrict_qty.module:131
+msgid "Is it a lifetime restriction?"
+msgstr ""
+
+#: uc_restrict_qty.module:133
+msgid "If checked, user's ordering history will be taken into account too. Useful when you want to prevent double ordering of a product."
+msgstr ""
+
+#: uc_restrict_qty.module:143
+msgid "You must enter 0 or a positive integer value."
+msgstr ""
+
+#: uc_restrict_qty.module:148
+msgid "A quantity restriction has already been set up for this SKU"
+msgstr ""
+
+#: uc_restrict_qty.module:165
+msgid "Any"
+msgstr ""
+
+#: uc_restrict_qty.module:166
+msgid "Quantity restriction"
+msgstr ""
+
+#: uc_restrict_qty.module:167
+msgid "Type"
+msgstr ""
+
+#: uc_restrict_qty.module:167
+msgid "Lifetime"
+msgstr ""
+
+#: uc_restrict_qty.module:167
+msgid "Cart max."
+msgstr ""
+
+#: uc_restrict_qty.module:212
+msgid "Sorry, you have reached the quantity limit for this product. You can not order more items of this product."
+msgstr ""
+
+#: uc_restrict_qty.module:199
+msgid "Sorry, you may only have a total of 1 item in your cart. You must <a href='@checkout'>checkout</a> or remove the item in <a href='@cart'>your cart</a> before adding a different item."
+msgid_plural "Sorry, you may only have a total of @count items in your cart. You must <a href='@checkout'>checkout</a> or remove items from <a href='@cart'>your cart</a> before adding others."
+msgstr[0] ""
+msgstr[1] ""
+
+#: uc_restrict_qty.module:243
+msgid "You may only add 1 !item to your cart. Quantity has been restricted."
+msgid_plural "You may only add @count !item to your cart. Quantity has been restricted."
+msgstr[0] ""
+msgstr[1] ""
+
+#: uc_restrict_qty.install:24
+msgid "The ID of the product feature this is attached to."
+msgstr ""
+
+#: uc_restrict_qty.install:31
+msgid "The ID of the node this role feature is attached to."
+msgstr ""
+
+#: uc_restrict_qty.install:38
+msgid "The product model."
+msgstr ""
+
+#: uc_restrict_qty.install:44
+msgid "The quantity restriction."
+msgstr ""
+
+#: uc_restrict_qty.install:51
+msgid "Is restriction lifetime?"
+msgstr ""
+
+#: uc_restrict_qty.info:0
+msgid "UC Restrict Qty"
+msgstr ""
+
+#: uc_restrict_qty.info:0
+msgid "Restrict the quantity on specified products so that only specified quantity may be purchased at a time."
+msgstr ""
+
+#: uc_restrict_qty.info:0
+msgid "Ubercart - extra"
+msgstr ""
+

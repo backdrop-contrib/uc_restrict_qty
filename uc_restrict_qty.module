@@ -3,7 +3,7 @@
 
 /**
  * @file
- * Restrict the quantity on specified products so that only one may be purchased
+ * Restrict the quantity on specified products so that only specified quantity may be purchased
  * at a time.
  */
 
@@ -43,7 +43,27 @@ function uc_restrict_qty_settings() {
     '#size' => 5,
     '#maxlength' => 5,
     '#description' => t('The number of different products that can be added to a cart. Set to 0 for unlimited.'),
-    '#default_value' => variable_get('uc_restrict_qty_global', '0'),
+    '#default_value' => variable_get('uc_restrict_qty_global', 0),
+  );
+
+  $form['defaults'] = array(
+    '#title' => t('Defaults'),
+    '#type' => 'fieldset',
+    '#description' => t('These options will take action, only if product has the "Restrict quantity" feature activated.'),
+  );
+  $form['defaults']['uc_restrict_qty_default_qty'] = array(
+    '#title' => t("Default maximum limit for a product"),
+    '#type' => 'textfield',
+    '#size' => 5,
+    '#maxlength' => 5,
+    '#description' => t('The number of products of single type that can be added to a cart. Set to 0 for unlimited.'),
+    '#default_value' => variable_get('uc_restrict_qty_default_qty', 0),
+  );
+  $form['defaults']['uc_restrict_qty_default_lifetime'] = array(
+    '#title' => t("Is restriction is the user's lifetime limit"),
+    '#type' => 'checkbox',
+    '#description' => t("Useful when you want to prevent double ordering of a product."),
+    '#default_value' => variable_get('uc_restrict_qty_default_lifetime', FALSE),
   );
 
   return $form;
@@ -54,6 +74,9 @@ function uc_restrict_qty_settings_validate($form, &$form_state) {
   if (!is_numeric($form_state['values']['uc_restrict_qty_global']) || $form_state['values']['uc_restrict_qty_global'] < 0) {
     form_set_error('uc_restrict_qty_global', t('You must enter 0 or a positive number value.'));
   }
+  if (!is_numeric($form_state['values']['uc_restrict_qty_default_qty']) || $form_state['values']['uc_restrict_qty_default_qty'] < 0) {
+    form_set_error('uc_restrict_qty_default_qty', t('You must enter 0 or a positive number value.'));
+  }
 }
 
 // Builds the form to display for adding or editing a the restricted quantity feature.
@@ -61,10 +84,11 @@ function uc_restrict_qty_feature_form($form_state, $node, $feature) {
   $models = uc_product_get_models($node);
   if (!empty($feature)) {
     $product_qty = db_fetch_object(db_query("SELECT * FROM {uc_restrict_qty_products} WHERE pfid = %d", $feature['pfid']));
-    
+
     $default_qty = $product_qty->qty;
     $default_model = $product_qty->model;
-    
+    $default_lifetime = $product_qty->lifetime;
+
     $form['pfid'] = array(
       '#type' => 'value',
       '#value' => $feature['pfid'],
@@ -73,10 +97,6 @@ function uc_restrict_qty_feature_form($form_state, $node, $feature) {
       '#type' => 'value',
       '#value' => $product_qty->rqpid,
     );
-  }
-  else {
-    $default_model = 0;
-    $default_qty = variable_get('uc_restrict_qty_default_qty', '1');
   }
 /*  if ($result = db_result(db_query("SELECT COUNT(*) FROM {uc_product_features} WHERE nid = %d AND fid = '%s'", $node->nid, 'restrict_qty'))) {
     drupal_set_message(t('Adding more than one Restrict Qty. does nothing for now.', 'error'));
@@ -95,7 +115,7 @@ function uc_restrict_qty_feature_form($form_state, $node, $feature) {
   $form['model'] = array(
     '#type' => 'select',
     '#title' => t('SKU'),
-    '#default_value' => $default_model,
+    '#default_value' => isset($default_model) ? $default_model : 0,
     '#description' => t('This is the SKU of the product that will be restricted to this quantity.'),
     '#options' => $models,
   );
@@ -105,14 +125,19 @@ function uc_restrict_qty_feature_form($form_state, $node, $feature) {
     '#size' => 5,
     '#maxlength' => 5,
     '#description' => t('The number of times this product can be added to a cart. Set to 0 for unlimited.'),
-    '#default_value' => $default_qty,
+    '#default_value' => isset($default_qty) ? $default_qty : variable_get('uc_restrict_qty_default_qty', 0),
+  );
+  $form['lifetime'] = array(
+    '#title' => t('Is it a lifetime restriction?'),
+    '#type' => 'checkbox',
+    '#description' => t("If checked, user's ordering history will be taken into account too. Useful when you want to prevent double ordering of a product."),
+    '#default_value' => isset($default_lifetime) ? $default_lifetime : variable_get('uc_restrict_qty_default_lifetime', FALSE),
   );
   return uc_product_feature_form($form);
 }
 
 // Validates the textfield on the product features settings form.
 function uc_restrict_qty_feature_form_validate($form, &$form_state) {
-  
   // Invalid quantity?
   if (!is_numeric($form_state['values']['quantity']) || $form_state['values']['quantity'] < 0) {
     form_set_error('uc_restrict_qty_product_qty', t('You must enter 0 or a positive integer value.'));
@@ -134,11 +159,13 @@ function uc_restrict_qty_feature_form_submit($form, &$form_state) {
     'nid'         => $form_state['values']['nid'],
     'model'       => $form_state['values']['model'],
     'qty'         => $form_state['values']['quantity'],
+    'lifetime'    => $form_state['values']['lifetime'],
   );
   
-  $description = empty($product_qty['model']) ? t('<strong>SKU:</strong> Any<br/>') : t('<strong>SKU:</strong> !sku<br/>', array('!sku' => $product_qty['model']));
-  $description .=  t('<strong>Quantity restriction:</strong> !qty<br/>', array('!qty' => $form_state['values']['quantity']));
-  
+  $description = '<strong>'. t('SKU') .':</strong> '. (empty($product_qty['model']) ? t('Any') : $product_qty['model']) .'<br/>';
+  $description .= '<strong>'. t('Quantity restriction') .':</strong> '. $product_qty['qty'] .'<br/>';
+  $description .= '<strong>'. t('Type') .':</strong> '. ($product_qty['lifetime'] ? t('Lifetime') : t('Cart max.')) .'<br/>';
+
   $data = array(
     'pfid' => $product_qty['pfid'],
     'nid' => $product_qty['nid'],
@@ -166,12 +193,23 @@ function uc_restrict_qty_feature_form_submit($form, &$form_state) {
  */
 function uc_restrict_qty_add_to_cart($nid, $qty, $data) {
   $limit = variable_get('uc_restrict_qty_global', 0);
-
   // If a global restriction on the number of items has been made.
   if ($limit > 0) {
     if (count(uc_cart_get_contents()) >= $limit) {
-      $message = format_plural($limit, 'Sorry, you may only have 1 item in your cart. You must checkout or remove the item in your cart before adding a different item.',
-        'Sorry, you may only have a total of @count items in your cart.  You must checkout or remove items from your cart before adding others.');
+      $message = format_plural($limit, "Sorry, you may only have a total of 1 item in your cart. You must <a href='@checkout'>checkout</a> or remove the item in <a href='@cart'>your cart</a> before adding a different item.",
+        "Sorry, you may only have a total of @count items in your cart. You must <a href='@checkout'>checkout</a> or remove items from <a href='@cart'>your cart</a> before adding others.", array('@cart' => url('cart'), '@checkout' => url('cart/checkout')));
+
+      $result[] = array(
+        'success' => FALSE,
+        'message' => $message,
+      );
+    }
+  }
+
+  // Check lifetime product-level limit.
+  if ($data['restrict_qty']['lifetime']) {
+    if (!$data['restrict_qty']['rest']) {
+      $message = t('Sorry, you have reached the quantity limit for this product. You can not order more items of this product.');
 
       $result[] = array(
         'success' => FALSE,
@@ -195,11 +233,15 @@ function uc_restrict_qty_add_to_cart_data($form_values) {
 function uc_restrict_qty_cart_item($op, &$item) {
   if ($op == 'load') {
     // If this item has a quantity restriction on it...
-    if ($item->data['restrict_qty'] > 0 && $item->qty > $item->data['restrict_qty']) {
-      // Reduce the quantity to 1 if necessary.
-      db_query("UPDATE {uc_cart_products} SET qty = %d, changed = %d WHERE cart_id = '%s' AND nid = %d AND data = '%s'", $item->data['restrict_qty'], time(), uc_cart_get_id(), $item->nid, serialize($item->data));
-      $item->qty = $item->data['restrict_qty'];
-      drupal_set_message(t('You may only add !qty !item. to your cart. Quantity has been restricted.', array('!qty' => $item->qty, '!item' => $item->title)), 'warning');
+    if ($item->data['restrict_qty']['qty'] > 0) {
+      $is_lifetime = isset($item->data['restrict_qty']['lifetime']) && $item->data['restrict_qty']['lifetime'];
+      $restrict_qty = $is_lifetime ? $item->data['restrict_qty']['rest'] : $item->data['restrict_qty']['qty'];
+      if ($item->qty > $restrict_qty) {
+        // Reduce the quantity to 1 if necessary.
+        $item->qty = $restrict_qty;
+        db_query("UPDATE {uc_cart_products} SET qty = %d, changed = %d WHERE cart_id = '%s' AND nid = %d AND data = '%s'", $restrict_qty, time(), uc_cart_get_id(), $item->nid, serialize($item->data));
+        drupal_set_message(format_plural($restrict_qty, 'You may only add 1 !item to your cart. Quantity has been restricted.', 'You may only add @count !item to your cart. Quantity has been restricted.', array('!item' => $item->title)), 'warning');
+      }
     }
   }
 }
@@ -214,7 +256,9 @@ function uc_restrict_qty_form_alter(&$form, &$form_state, $form_id) {
       $data = unserialize($form['items'][$i]['data']['#value']);
       
       // If this item has a quantity restriction on it...
-      if ($data['restrict_qty'] == 1) {
+      $is_lifetime = isset($data['restrict_qty']['lifetime']) && $data['restrict_qty']['lifetime'];
+      $restrict_qty = $is_lifetime ? $data['restrict_qty']['rest'] : $data['restrict_qty']['qty'];
+      if ($restrict_qty == 1) {
         $form['items'][$i]['qty']['#type'] = 'value';
         $form['items'][$i]['qty']['#theme'] = 'restrict_qty_field';
       }
@@ -233,7 +277,15 @@ function theme_restrict_qty_field($element) {
 
 // Returns the number of restrict_qty features on a product node.
 function uc_restrict_qty_count($form_values) {
-  return db_result(db_query("SELECT qty FROM {uc_restrict_qty_products} WHERE nid = %d", $form_values['nid']));
+  global $user;
+
+  $data = db_fetch_array(db_query("SELECT qty, lifetime FROM {uc_restrict_qty_products} WHERE nid = %d", $form_values['nid']));
+  if ($data['lifetime']) {
+    $bought_qty = db_result(db_query('SELECT SUM(uop.qty) FROM {uc_orders} uo LEFT JOIN {uc_order_products} uop ON uo.order_id = uop.order_id WHERE uo.order_status = "completed" AND uo.uid = %d AND uop.nid = %d ORDER BY uop.nid', $user->uid, $form_values['nid']));
+    $data['rest'] = $data['qty'] - $bought_qty;
+  }
+
+  return $data;
 }
 
 /* ************************************************************************* *
