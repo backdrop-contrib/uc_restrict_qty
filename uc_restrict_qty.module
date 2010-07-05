@@ -45,7 +45,12 @@ function uc_restrict_qty_settings() {
     '#description' => t('The number of different products that can be added to a cart. Set to 0 for unlimited.'),
     '#default_value' => variable_get('uc_restrict_qty_global', 0),
   );
-
+  $form['uc_restrict_qty_global_replace'] = array(
+    '#title' => t('Replace Contents'),
+    '#type'  => 'checkbox',
+    '#description' => t('Enabling this feature will cause the users cart to be emptied if they add more items than the Global Limit set above. This is best used when you offer mutually exclusive content (such as subscription services) where purchasing more then one product is not a valid option.'),
+    '#default_value' => variable_get('uc_restrict_qty_global_replace', FALSE),
+   );
   $form['defaults'] = array(
     '#title' => t('Defaults'),
     '#type' => 'fieldset',
@@ -161,7 +166,7 @@ function uc_restrict_qty_feature_form_submit($form, &$form_state) {
     'qty'         => $form_state['values']['quantity'],
     'lifetime'    => $form_state['values']['lifetime'],
   );
-  
+
   $description = '<strong>'. t('SKU') .':</strong> '. (empty($product_qty['model']) ? t('Any') : $product_qty['model']) .'<br/>';
   $description .= '<strong>'. t('Quantity restriction') .':</strong> '. $product_qty['qty'] .'<br/>';
   $description .= '<strong>'. t('Type') .':</strong> '. ($product_qty['lifetime'] ? t('Lifetime') : t('Cart max.')) .'<br/>';
@@ -179,12 +184,12 @@ function uc_restrict_qty_feature_form_submit($form, &$form_state) {
   if ($product_qty['rqpid']) {
     $key = 'rqpid';
   }
-  
+
   // Insert or update uc_file_product table
   if (empty($product_qty['pfid'])) {
     $product_qty['pfid'] = db_last_insert_id('uc_product_features', 'pfid');
   }
-  
+
   drupal_write_record('uc_restrict_qty_products', $product_qty, $key);
 }
 
@@ -193,16 +198,24 @@ function uc_restrict_qty_feature_form_submit($form, &$form_state) {
  */
 function uc_restrict_qty_add_to_cart($nid, $qty, $data) {
   $limit = variable_get('uc_restrict_qty_global', 0);
+  $replaceCart = variable_get('uc_restrict_qty_global_replace', FALSE);
+
   // If a global restriction on the number of items has been made.
   if ($limit > 0) {
     if (count(uc_cart_get_contents()) >= $limit) {
-      $message = format_plural($limit, "Sorry, you may only have a total of 1 item in your cart. You must <a href='@checkout'>checkout</a> or remove the item in <a href='@cart'>your cart</a> before adding a different item.",
-        "Sorry, you may only have a total of @count items in your cart. You must <a href='@checkout'>checkout</a> or remove items from <a href='@cart'>your cart</a> before adding others.", array('@cart' => url('cart'), '@checkout' => url('cart/checkout')));
+      if($replaceCart) {
+        db_query("DELETE FROM {uc_cart_products} WHERE cart_id = '%s'", uc_cart_get_id());
+        $result[] = array('success' => TRUE);
+      }
+      else {
+        $message = format_plural($limit, 'Sorry, you may only have 1 item in your cart. You must checkout or remove the item in your cart before adding a different item.',
+          'Sorry, you may only have a total of @count items in your cart.  You must checkout or remove items from your cart before adding others.');
 
-      $result[] = array(
-        'success' => FALSE,
-        'message' => $message,
-      );
+        $result[] = array(
+          'success' => FALSE,
+          'message' => $message,
+        );
+      }
     }
   }
 
@@ -254,7 +267,7 @@ function uc_restrict_qty_form_alter(&$form, &$form_state, $form_id) {
   if ($form_id == 'uc_cart_view_form') {
     for ($i = 0, $j = count(uc_cart_get_contents()); $i < $j; $i++) {
       $data = unserialize($form['items'][$i]['data']['#value']);
-      
+
       // If this item has a quantity restriction on it...
       $is_lifetime = isset($data['restrict_qty']['lifetime']) && $data['restrict_qty']['lifetime'];
       $restrict_qty = $is_lifetime ? $data['restrict_qty']['rest'] : $data['restrict_qty']['qty'];
@@ -264,7 +277,7 @@ function uc_restrict_qty_form_alter(&$form, &$form_state, $form_id) {
       }
     }
   }
-  
+
   if ($form_id == 'uc_product_feature_settings_form') {
     $form['#validate'][] = 'uc_restrict_qty_settings_validate';
   }
