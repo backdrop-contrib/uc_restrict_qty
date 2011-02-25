@@ -1,4 +1,3 @@
-; $Id$
 name = Restrict Qty
 description = Restrict the quantity on specified products so that only one may be purchased at a time.
 dependencies = uc_cart
