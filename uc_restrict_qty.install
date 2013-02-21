@@ -6,7 +6,7 @@
  */
 
 /**
- * Define the table structures.
+ * Implements hook_schema().
  *
  * @return
  *   The schema which contains the structure for the uc_restrict_qty module's tables.
@@ -64,28 +64,17 @@ function uc_restrict_qty_schema() {
   return $schema;
 }
 
-
 /**
- * Implementation of hook_install().
- *
- * Inserts the uc_restrict_qty module's schema in the SQL database.
- */
-function uc_restrict_qty_install() {
-  drupal_install_schema('uc_restrict_qty');
-}
-
-/**
- * Implementation of hook_uninstall().
+ * Implements hook_uninstall().
  *
  * Remove the variables and schema corresponding to the uc_restrict_qty module.
  */
 function uc_restrict_qty_uninstall() {
-  drupal_uninstall_schema('uc_restrict_qty');
   db_query("DELETE FROM {variable} WHERE name LIKE 'uc_restrict_qty_%%'");
 }
 
 /**
- * Implementation of hook_update_N().
+ * Implements hook_update_N().
  *
  * If updating from an earlier version than 6.x-2.0, the database needs to be installed.
  */
