@@ -319,7 +319,7 @@ function uc_restrict_qty_count($form_values) {
  *   A Drupal node ID.
  */
 function uc_restrict_qty_node_delete($nid) {
-  db_query("DELETE FROM {uc_restrict_qty_products} WHERE nid = :nid", array(':nid' => $nid));
+  db_query("DELETE FROM {uc_restrict_qty_products} WHERE nid = :nid", array(':nid' => $node->nid));
 }
 
 /**
