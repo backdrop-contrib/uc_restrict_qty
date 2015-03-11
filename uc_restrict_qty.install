@@ -73,23 +73,3 @@ function uc_restrict_qty_uninstall() {
   db_query("DELETE FROM {variable} WHERE name LIKE 'uc_restrict_qty_%%'");
 }
 
-/**
- * Implements hook_update_N().
- *
- * If updating from an earlier version than 6.x-2.0, the database needs to be installed.
- */
-function uc_restrict_qty_update_6200() {
-  $ret = array();
-  uc_restrict_qty_install();
-  return $ret;
-}
-
-
-/**
- * Add lifetime value to the scheme.
- */
-function uc_restrict_qty_update_6201() {
-  $ret = array();
-  db_add_field($ret, 'uc_restrict_qty_products', 'lifetime', array('type' => 'int', 'size' => 'tiny', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 1));
-  return $ret;
-}
