@@ -347,7 +347,7 @@ function uc_restrict_qty_count($form_values) {
 /**
  * Delete all data associated with a given node.
  *
- * @param obejct $node
+ * @param Node $node
  *   A Backdrop node object.
  */
 function uc_restrict_qty_node_delete($node) {
@@ -359,13 +359,15 @@ function uc_restrict_qty_node_delete($node) {
 /**
  * Delete all data associated with a given product feature.
  *
- * @param $pfid
+ * @param $feature
  *   An Ubercart product feature array.
  */
 function uc_restrict_qty_feature_delete($feature) {
-  db_delete('uc_restrict_qty_products')
-        ->condition('pfid', $feature['pfid'])
-        ->execute();
+  if (!empty($feature['pfid'])) {
+    db_delete('uc_restrict_qty_products')
+      ->condition('pfid', $feature['pfid'])
+      ->execute();
+  }
 }
 
 /**
