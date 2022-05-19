@@ -298,7 +298,7 @@ function uc_restrict_qty_form_alter(&$form, &$form_state, $form_id) {
       $data = unserialize($form['items'][$i]['data']['#value']);
 
       // If this item has a quantity restriction on it.
-      if (isset($data['restrict_qty'])) {
+      if (!empty($data['restrict_qty'])) {
         $is_lifetime = isset($data['restrict_qty']['lifetime']) && $data['restrict_qty']['lifetime'];
         $restrict_qty = $is_lifetime ? $data['restrict_qty']['rest'] : $data['restrict_qty']['qty'];
         if ($restrict_qty == 1) {
@@ -328,7 +328,7 @@ function uc_restrict_qty_count($form_values) {
   global $user;
 
   $data = db_query("SELECT qty, lifetime FROM {uc_restrict_qty_products} WHERE nid = :nid", array(':nid' => $form_values['nid']))->fetchAssoc();
-  if ($data['lifetime']) {
+  if ($data !== FALSE && $data['lifetime']) {
     $bought_qty = db_query('SELECT SUM(uop.qty) FROM {uc_orders} uo LEFT JOIN {uc_order_products} uop ON uo.order_id = uop.order_id WHERE uo.order_status = :completed AND uo.uid = :uid AND uop.nid = :nid ORDER BY uop.nid', array(
       ':completed' => 'completed',
       ':uid' => $user->uid,
