@@ -1,6 +1,7 @@
-name = UC Restrict Qty
+name = UC Restrict Quantity
 description = Restrict the quantity on specified products so that only specified quantity may be purchased at a time.
-dependencies[] = uc_cart
-package = Ubercart - extra
+package = Ubercart
 backdrop = 1.x
 type = module
+
+dependencies[] = ubercart
