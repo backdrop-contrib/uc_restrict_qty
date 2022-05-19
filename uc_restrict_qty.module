@@ -241,7 +241,7 @@ function uc_restrict_qty_uc_add_to_cart($nid, $qty, $data) {
   }
 
   // Check lifetime product-level limit.
-  if ($data['restrict_qty']['lifetime']) {
+  if (!empty($data['restrict_qty']['lifetime'])) {
     if (!$data['restrict_qty']['rest']) {
       $message = t('Sorry, you have reached the quantity limit for this product. You can not order more items of this product.');
 
