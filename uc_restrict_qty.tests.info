@@ -1,0 +1,6 @@
+[UCRestrictQtyFunctionalTest]
+name = Various functional tests
+description = 
+group = UC Restrict Qty
+file = tests/uc_restrict_qty.test
+

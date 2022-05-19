@@ -57,7 +57,7 @@ function uc_restrict_qty_schema() {
     ),
     'indexes' => array(
       'nid' => array('nid'),
-      'model' => array('model')
+      'model' => array('model'),
     ),
     'primary key' => array('rqpid'),
   );
@@ -71,5 +71,29 @@ function uc_restrict_qty_schema() {
  */
 function uc_restrict_qty_uninstall() {
   db_query("DELETE FROM {variable} WHERE name LIKE 'uc_restrict_qty_%%'");
+}
+
+/**
+ * Migrate uc_restrict_qty variables to config.
+ */
+function uc_restrict_qty_update_1000() {
+  $config = config('uc_restrict_qty.settings');
+  $config->set('uc_restrict_qty_global', update_variable_get('uc_restrict_qty_global', '0'));
+  $config->set('uc_restrict_qty_global_replace', update_variable_get('uc_restrict_qty_global_replace', array()));
+  $config->set('uc_restrict_qty_default_qty', update_variable_get('uc_restrict_qty_default_qty', '0'));
+  $config->set('uc_restrict_qty_default_lifetime', update_variable_get('uc_restrict_qty_default_lifetime', array()));
+  $config->save();
+
+  update_variable_del('uc_restrict_qty_global');
+  update_variable_del('uc_restrict_qty_global_replace');
+  update_variable_del('uc_restrict_qty_default_qty');
+  update_variable_del('uc_restrict_qty_default_lifetime');
+}
+
+/**
+ * Implements hook_install().
+ */
+function uc_restrict_qty_install() {
+  // Dynamically generated variable data was detected.
 }
 

@@ -1,0 +1,7 @@
+{
+    "_config_name": "uc_restrict_qty.settings",
+    "uc_restrict_qty_global": "0",
+    "uc_restrict_qty_global_replace": false,
+    "uc_restrict_qty_default_qty": "0",
+    "uc_restrict_qty_default_lifetime": false
+}
