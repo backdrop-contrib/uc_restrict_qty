@@ -102,7 +102,7 @@ function uc_restrict_qty_settings_validate($form, &$form_state) {
 /**
  * Submit handler.
  * 
- * Saves settings for UC Restrict Quantity.
+ * Saves all settings.
  */
 function uc_restrict_qty_settings_submit($form, $form_state) {
   $config = config('uc_restrict_qty.settings');
