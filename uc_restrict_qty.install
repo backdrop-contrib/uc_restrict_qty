@@ -46,6 +46,14 @@ function uc_restrict_qty_schema() {
         'not null' => TRUE,
         'default' => 0,
       ),
+      'all_variations' => array(
+        'description' => t('Count all product variations?'),
+        'type' => 'int',
+        'size' => 'tiny',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 1,
+      ),
       'lifetime' => array(
         'description' => t('Is restriction lifetime?'),
         'type' => 'int',
@@ -88,6 +96,25 @@ function uc_restrict_qty_update_1000() {
   update_variable_del('uc_restrict_qty_global_replace');
   update_variable_del('uc_restrict_qty_default_qty');
   update_variable_del('uc_restrict_qty_default_lifetime');
+}
+
+/** 
+ * Add the all_variations column to the uc_restrict_qty_products configuration table.
+ */
+function uc_restrict_qty_update_1001() {
+  
+  if (db_field_exists('uc_restrict_qty_products', 'all_variations')) {
+    return;
+  }
+  $schema = array(
+    'description' => t('Count all product variations?'),
+    'type' => 'int',
+    'size' => 'tiny',
+    'unsigned' => TRUE,
+    'not null' => TRUE,
+    'default' => 1,
+  );
+  db_add_field('uc_restrict_qty_products', 'all_variations', $schema);
 }
 
 /**
