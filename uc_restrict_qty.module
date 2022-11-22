@@ -362,12 +362,10 @@ function uc_restrict_qty_node_delete($node) {
  * @param $feature
  *   An Ubercart product feature array.
  */
-function uc_restrict_qty_feature_delete($feature) {
-  if (!empty($feature['pfid'])) {
-    db_delete('uc_restrict_qty_products')
-      ->condition('pfid', $feature['pfid'])
-      ->execute();
-  }
+function uc_restrict_qty_feature_delete($pfid) {
+  db_delete('uc_restrict_qty_products')
+    ->condition('pfid', $pfid)
+    ->execute();
 }
 
 /**
