@@ -281,6 +281,28 @@ function uc_restrict_qty_uc_add_to_cart($nid, $qty, $data) {
       );
     }
   }
+
+  // Check all variations in cart and calculate limit.
+  if (!empty($data['restrict_qty']['all_variations'])) {
+    $cart_items = uc_cart_get_contents();
+    $restrict_qty = $data['restrict_qty']['qty'];
+    $cart_qty = 0;
+    // Add the quantities of other variations if any.
+    foreach ($cart_items as $uc_cart_item) {
+      $cart_qty += $uc_cart_item->qty;
+    }
+    if (!empty($data['restrict_qty']['lifetime'])) {
+      $restrict_qty = $data['restrict_qty']['rest'];
+    }
+    if ($cart_qty + $qty > $restrict_qty && $restrict_qty - $cart_qty < 1) {
+      $message = t('Sorry, you have reached the quantity limit for this product. You can not order more items of this product.');
+      $result[] = array(
+        'success' => FALSE,
+        'message' => $message,
+      );
+    }
+  }
+  
   return $result;
 }
 
@@ -304,11 +326,16 @@ function  uc_restrict_qty_uc_cart_item_presave($item) {
     $total_restrict_qty = $restrict_qty;
 
     if ($all_variations) {
+      // This restriction works only for items that are not new.
       $efq = new EntityFieldQuery();
       $efq->entityCondition('entity_type', 'uc_cart_item')
           ->propertyCondition('cart_id', $item->cart_id)
-          ->propertyCondition('nid', $item->nid)
-          ->propertyCondition('cart_item_id', $item->cart_item_id, '<>');
+          ->propertyCondition('nid', $item->nid);
+
+      if (!$item->is_new) {
+        $efq->propertyCondition('cart_item_id', $item->cart_item_id, '<>');
+      }
+
       $result = $efq->execute();
       // If there are other variations of this product in cart.
       if (!empty($result['uc_cart_item'])) {
@@ -325,11 +352,12 @@ function  uc_restrict_qty_uc_cart_item_presave($item) {
     if ($item->qty > $restrict_qty) {
       // Reduce the quantity to 1 if necessary.
       $item->qty = $restrict_qty;
+      $product = node_load($item->nid);
       if ($all_variations) {
-        backdrop_set_message(format_plural($total_restrict_qty, 'You may only have a total of 1 !item in your cart. Quantity has been restricted.', 'You may only have a total of @count !item in your cart. Quantity has been restricted.', array('!item' => $item->title)), 'warning');
+        backdrop_set_message(format_plural($total_restrict_qty, 'You may only have a total of 1 !item in your cart. Quantity has been restricted.', 'You may only have a total of @count !item in your cart. Quantity has been restricted.', array('!item' => $product->title)), 'warning');
       }
       else {
-        backdrop_set_message(format_plural($restrict_qty, 'You may only add 1 !item to your cart. Quantity has been restricted.', 'You may only add @count !item to your cart. Quantity has been restricted.', array('!item' => $item->title)), 'warning');
+        backdrop_set_message(format_plural($restrict_qty, 'You may only add 1 !item to your cart. Quantity has been restricted.', 'You may only add @count !item to your cart. Quantity has been restricted.', array('!item' => $product->title)), 'warning');
       }
     }
   }
