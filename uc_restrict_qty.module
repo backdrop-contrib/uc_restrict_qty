@@ -131,7 +131,8 @@ function uc_restrict_qty_feature_form($form, &$form_state, $node, $feature) {
     $default_qty = $product_qty->qty;
     $default_model = $product_qty->model;
     $default_lifetime = $product_qty->lifetime;
-
+    $default_all_variations = $product_qty->all_variations;
+ 
     $form['pfid'] = array(
       '#type' => 'value',
       '#value' => $feature['pfid'],
@@ -146,12 +147,23 @@ function uc_restrict_qty_feature_form($form, &$form_state, $node, $feature) {
     '#type' => 'value',
     '#value' => $node->nid,
   );
+  $form['all_variations'] = array(
+    '#title' => t('Restrict all variations of this product'),
+    '#description' => t('If checked, all variations of a product will be counted toward the quantity limit.'),
+    '#type' => 'checkbox',
+    '#default_value' => isset($default_all_variations) ? $default_all_variations : $config->get('uc_restrict_qty_default_all_variations'),
+  );
   $form['model'] = array(
     '#type' => 'select',
     '#title' => t('SKU'),
     '#default_value' => isset($default_model) ? $default_model : 0,
-    '#description' => t('This is the SKU of the product that will be restricted to this quantity.'),
+    '#description' => t('This is the SKU of the product that will be restricted to this quantity. If any variations of this product share this SKU, their quantities will be restricted separately per variation.'),
     '#options' => $models,
+    '#states' => array(
+      'visible' => array(
+        ':input[name="all_variations"]' => array('checked' => FALSE)
+      ),
+    ),
   );
   $form['quantity'] = array(
     '#title' => t('Quantity limit'),
@@ -179,15 +191,28 @@ function uc_restrict_qty_feature_form_validate($form, &$form_state) {
     form_set_error('uc_restrict_qty_product_qty', t('You must enter 0 or a positive integer value.'));
   }
 
-  // Check if this feature is already set on this SKU.
-  $product_roles = db_query("SELECT * FROM {uc_restrict_qty_products} WHERE nid = :nid AND model = :model", array(
-    ':nid' => $form_state['values']['nid'],
-    ':model' => $form_state['values']['model'],
-  ))->fetchObject();
+  if (empty($form_state['values']['all_variations'])) {
+    // Check if this feature is already set on this SKU.
+    $product_roles = db_query("SELECT * FROM {uc_restrict_qty_products} WHERE nid = :nid AND model = :model", array(
+      ':nid' => $form_state['values']['nid'],
+      ':model' => $form_state['values']['model'],
+    ))->fetchObject();
 
-  if ($product_roles && $form_state['values']['pfid'] == 0) {
-    form_set_error('uc_roles_model', t('A quantity restriction has already been set up for this SKU'));
+    if ($product_roles && $form_state['values']['pfid'] == 0) {
+      form_set_error('uc_roles_model', t('A quantity restriction has already been set up for this SKU'));
+    }
+  } 
+  else {
+    // Check if this feature is already set on this SKU.
+    $product_roles = db_query("SELECT * FROM {uc_restrict_qty_products} WHERE nid = :nid", array(
+      ':nid' => $form_state['values']['nid'],
+    ))->fetchObject();
+
+    if ($product_roles && $form_state['values']['pfid'] == 0) {
+      form_set_error('uc_roles_model', t('A quantity restriction has already been set up for the node ID of this product'));
+    }
   }
+
 }
 
 /**
@@ -200,12 +225,17 @@ function uc_restrict_qty_feature_form_submit($form, &$form_state) {
     'nid' => $form_state['values']['nid'],
     'model' => $form_state['values']['model'],
     'qty' => $form_state['values']['quantity'],
+    'all_variations' => $form_state['values']['all_variations'],
     'lifetime' => $form_state['values']['lifetime'],
   );
 
-  $description = '<strong>' . t('SKU') . ':</strong>' . (empty($product_qty['model'])?t('Any') : $product_qty['model']) . '<br/>';
-  $description .= '<strong>' . t('Quantity restriction') . ':</strong>' . $product_qty['qty'] . '<br/>';
-  $description .= '<strong>' . t('Type') . ':</strong>' . ($product_qty['lifetime']?t('Lifetime') : t('Cart max.')) . '<br/>';
+  $description = '';
+  $description .= '<strong>' . t('Restriction applied to') . ': </strong>' . ($product_qty['all_variations'] ? t('All variations of this product') : t('Products with this SKU')) . '<br/>';
+  if (!$product_qty['all_variations']) {
+    $description .= '<strong>' . t('SKU') . ':</strong>' . (empty($product_qty['model'])?t('Any') : $product_qty['model']) . '<br/>';
+  }
+  $description .= '<strong>' . t('Quantity restriction') . ': </strong>' . $product_qty['qty'] . '<br/>';
+  $description .= '<strong>' . t('Type') . ': </strong>' . ($product_qty['lifetime'] ? t('Lifetime') : t('Cart max.')) . '<br/>';
 
   $data = array(
     'nid' => $product_qty['nid'],
@@ -239,7 +269,7 @@ function uc_restrict_qty_uc_add_to_cart($nid, $qty, $data) {
   $config = config('uc_restrict_qty.settings');
   $limit = $config->get('uc_restrict_qty_global');
   $replacecart = $config->get('uc_restrict_qty_global_replace');
-  $result = NULL; // added by Jeff
+  $result = NULL;
 
   // If a global restriction on the number of items has been made.
   if ($limit > 0) {
@@ -271,11 +301,33 @@ function uc_restrict_qty_uc_add_to_cart($nid, $qty, $data) {
       );
     }
   }
+
+  // Check all variations in cart and calculate limit.
+  if (!empty($data['restrict_qty']['all_variations'])) {
+    $cart_items = uc_cart_get_contents();
+    $restrict_qty = $data['restrict_qty']['qty'];
+    $cart_qty = 0;
+    // Add the quantities of other variations if any.
+    foreach ($cart_items as $uc_cart_item) {
+      $cart_qty += $uc_cart_item->qty;
+    }
+    if (!empty($data['restrict_qty']['lifetime'])) {
+      $restrict_qty = $data['restrict_qty']['rest'];
+    }
+    if ($cart_qty + $qty > $restrict_qty && $restrict_qty - $cart_qty < 1) {
+      $message = t('Sorry, you have reached the quantity limit for this product. You can not order more items of this product.');
+      $result[] = array(
+        'success' => FALSE,
+        'message' => $message,
+      );
+    }
+  }
+  
   return $result;
 }
 
 /**
- * Implements hook_add_to_cart_data().
+ * Implements hook_uc_add_to_cart_data().
  * @param $form_values
  *   The values submitted to the Add to Cart form.
  *
@@ -286,24 +338,47 @@ function uc_restrict_qty_uc_add_to_cart_data($form_values) {
   return array('restrict_qty' => uc_restrict_qty_count($form_values));
 }
 
-/**
- * Implements hook_uc_cart_item_update().
- */
-function uc_restrict_qty_uc_cart_item_update($item) {
-  // Check if this item has a quantity restriction on it.
+function  uc_restrict_qty_uc_cart_item_presave($item) {
   if (isset($item->data['restrict_qty']['qty']) && $item->data['restrict_qty']['qty'] > 0) {
     $is_lifetime = isset($item->data['restrict_qty']['lifetime']) && $item->data['restrict_qty']['lifetime'];
+    $all_variations = isset($item->data['restrict_qty']['all_variations']) && $item->data['restrict_qty']['all_variations'];
     $restrict_qty = $is_lifetime ? $item->data['restrict_qty']['rest'] : $item->data['restrict_qty']['qty'];
+    $total_restrict_qty = $restrict_qty;
+
+    if ($all_variations) {
+      // This restriction works only for items that are not new.
+      $efq = new EntityFieldQuery();
+      $efq->entityCondition('entity_type', 'uc_cart_item')
+          ->propertyCondition('cart_id', $item->cart_id)
+          ->propertyCondition('nid', $item->nid);
+
+      if (!$item->is_new) {
+        $efq->propertyCondition('cart_item_id', $item->cart_item_id, '<>');
+      }
+
+      $result = $efq->execute();
+      // If there are other variations of this product in cart.
+      if (!empty($result['uc_cart_item'])) {
+        $uc_cart_item_ids = array_keys($result['uc_cart_item']);
+        $uc_cart_items = entity_load_multiple('uc_cart_item', $uc_cart_item_ids);
+        $existing_qty = 0;
+        // Add the quantities of other variations if any.
+        foreach ($uc_cart_items as $uc_cart_item) {
+          $existing_qty += $uc_cart_item->qty;
+        }
+        $restrict_qty = $restrict_qty - $existing_qty;
+      }
+    } 
     if ($item->qty > $restrict_qty) {
       // Reduce the quantity to 1 if necessary.
       $item->qty = $restrict_qty;
-      db_update('uc_cart_products')
-              ->fields(array('qty' => $restrict_qty, 'changed' => time()))
-              ->condition('cart_id', uc_cart_get_id())
-              ->condition('nid', $item->nid)
-              ->condition('data', serialize($item->data))
-              ->execute();
-      backdrop_set_message(format_plural($restrict_qty, 'You may only add 1 !item to your cart. Quantity has been restricted.', 'You may only add @count !item to your cart. Quantity has been restricted.', array('!item' => $item->title)), 'warning');
+      $product = node_load($item->nid);
+      if ($all_variations) {
+        backdrop_set_message(format_plural($total_restrict_qty, 'You may only have a total of 1 !item in your cart. Quantity has been restricted.', 'You may only have a total of @count !item in your cart. Quantity has been restricted.', array('!item' => $product->title)), 'warning');
+      }
+      else {
+        backdrop_set_message(format_plural($restrict_qty, 'You may only add 1 !item to your cart. Quantity has been restricted.', 'You may only add @count !item to your cart. Quantity has been restricted.', array('!item' => $product->title)), 'warning');
+      }
     }
   }
 }
@@ -346,8 +421,18 @@ function theme_restrict_qty_field($variables) {
  */
 function uc_restrict_qty_count($form_values) {
   global $user;
-
-  $data = db_query("SELECT qty, lifetime FROM {uc_restrict_qty_products} WHERE nid = :nid", array(':nid' => $form_values['nid']))->fetchAssoc();
+  $query = db_select('uc_restrict_qty_products', 'rq');
+  $query->fields('rq', array('lifetime', 'all_variations', 'qty', 'model'))
+        ->condition('nid', $form_values['nid']);
+  if (!empty($form_values['attributes'])) {
+    $node = $form_values['node'];
+    $variant = uc_product_load_variant($node->nid, array('attributes' => $form_values['attributes']));
+    if (!empty($variant->model)) {
+      $query->condition('model', $variant->model);      
+    }
+  }
+  $data = $query->execute()->fetchAssoc();
+  
   if ($data !== FALSE && $data['lifetime']) {
     $bought_qty = db_query('SELECT SUM(uop.qty) FROM {uc_orders} uo LEFT JOIN {uc_order_products} uop ON uo.order_id = uop.order_id WHERE uo.order_status = :completed AND uo.uid = :uid AND uop.nid = :nid ORDER BY uop.nid', array(
       ':completed' => 'completed',
