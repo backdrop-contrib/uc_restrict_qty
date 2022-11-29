@@ -137,7 +137,7 @@ function uc_restrict_qty_feature_form($form, &$form_state, $node, $feature) {
     '#type' => 'select',
     '#title' => t('SKU'),
     '#default_value' => isset($default_model) ? $default_model : 0,
-    '#description' => t('This is the SKU of the product that will be restricted to this quantity. If any variations of this product use the same SKU, the quantities will be restricted for each variation.'),
+    '#description' => t('This is the SKU of the product that will be restricted to this quantity. If any variations of this product share this SKU, their quantities will be restricted separately per variation.'),
     '#options' => $models,
     '#states' => array(
       'visible' => array(
@@ -401,8 +401,18 @@ function theme_restrict_qty_field($variables) {
  */
 function uc_restrict_qty_count($form_values) {
   global $user;
-
-  $data = db_query("SELECT qty, lifetime, all_variations FROM {uc_restrict_qty_products} WHERE nid = :nid", array(':nid' => $form_values['nid']))->fetchAssoc();
+  $query = db_select('uc_restrict_qty_products', 'rq');
+  $query->fields('rq', array('lifetime', 'all_variations', 'qty', 'model'))
+        ->condition('nid', $form_values['nid']);
+  if (!empty($form_values['attributes'])) {
+    $node = $form_values['node'];
+    $variant = uc_product_load_variant($node->nid, array('attributes' => $form_values['attributes']));
+    if (!empty($variant->model)) {
+      $query->condition('model', $variant->model);      
+    }
+  }
+  $data = $query->execute()->fetchAssoc();
+  
   if ($data !== FALSE && $data['lifetime']) {
     $bought_qty = db_query('SELECT SUM(uop.qty) FROM {uc_orders} uo LEFT JOIN {uc_order_products} uop ON uo.order_id = uop.order_id WHERE uo.order_status = :completed AND uo.uid = :uid AND uop.nid = :nid ORDER BY uop.nid', array(
       ':completed' => 'completed',
