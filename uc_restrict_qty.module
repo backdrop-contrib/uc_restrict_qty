@@ -100,6 +100,26 @@ function uc_restrict_qty_settings_validate($form, &$form_state) {
 }
 
 /**
+ * Submit handler.
+ * 
+ * Saves all settings.
+ */
+function uc_restrict_qty_settings_submit($form, $form_state) {
+  $config = config('uc_restrict_qty.settings');
+  $restrict_qty_settings_keys = array(
+    'uc_restrict_qty_global',
+    'uc_restrict_qty_global_replace',
+    'uc_restrict_qty_default_qty',
+    'uc_restrict_qty_default_lifetime',
+  );
+  foreach ($restrict_qty_settings_keys as $key) {
+    $config->set($key, $form_state['values'][$key]);
+  }
+
+  $config->save();
+}
+
+/**
  * Builds the form to display for adding or editing a the restricted quantity feature.
  */
 function uc_restrict_qty_feature_form($form, &$form_state, $node, $feature) {
