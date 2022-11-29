@@ -73,15 +73,6 @@ function uc_restrict_qty_schema() {
 }
 
 /**
- * Implements hook_uninstall().
- *
- * Remove the variables and schema corresponding to the uc_restrict_qty module.
- */
-function uc_restrict_qty_uninstall() {
-  db_query("DELETE FROM {variable} WHERE name LIKE 'uc_restrict_qty_%%'");
-}
-
-/**
  * Migrate uc_restrict_qty variables to config.
  */
 function uc_restrict_qty_update_1000() {
@@ -101,7 +92,7 @@ function uc_restrict_qty_update_1000() {
 /** 
  * Add the all_variations column to the uc_restrict_qty_products configuration table.
  */
-function uc_restrict_qty_update_1001() {
+function uc_restrict_qty_update_1200() {
   
   if (db_field_exists('uc_restrict_qty_products', 'all_variations')) {
     return;
@@ -116,11 +107,3 @@ function uc_restrict_qty_update_1001() {
   );
   db_add_field('uc_restrict_qty_products', 'all_variations', $schema);
 }
-
-/**
- * Implements hook_install().
- */
-function uc_restrict_qty_install() {
-  // Dynamically generated variable data was detected.
-}
-
