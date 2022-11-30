@@ -9,6 +9,12 @@ Due to the way products are added to the cart, customers can add multiple
 variations of the same product to their carts (i.e. different attribute/option
 combinations) but never more than one of any given variation.
 
+## Versions
+- Version 1.x-1.X.X is a direct port of the Drupal 7 version, with some bug fixes
+- Version 1.x-2.X.X contains the following new features:
+  - Restrict quantity based on the Node ID of the product. Version 1 of the module counted the quantities of each variation of a product in the cart separately. With version 2 of the module, it's possible to limit the total quantity of a product, even when there are multiple variants of that product in the cart.
+  - Individually limit the quantity of variation of a single product with different SKUs. Version 1 is buggy: although you may enter different restrictions for different SKUs of a single product, only the first restriction was applied. With Version 2, you can specify limits for each SKU of each variation of a product.
+  
 ## Installation
 
  - Install this module using the [official Backdrop CMS instructions](https://backdropcms.org/guide/modules).
